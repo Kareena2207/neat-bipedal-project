@@ -1,0 +1,226 @@
+\documentclass[journal]{IEEEtran}
+
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage[caption=false,font=footnotesize]{subfig}
+\usepackage{xcolor}
+\usepackage{url}
+
+\begin{document}
+
+\title{NeuroEvolution of Augmenting Topologies for Bipedal Locomotion:\\
+A Four-Experiment Study on BipedalWalker-v3}
+
+\author{Kareena Lakhani and Milan Tiwari
+\thanks{Bio-Inspired AI and Optimization, Arizona State University, Spring 2025.}}
+
+\maketitle
+
+\begin{abstract}
+This project investigates NeuroEvolution of Augmenting Topologies (NEAT) on the continuous-control BipedalWalker-v3 task. We evaluate four questions: whether topology evolution matters, how reward shaping changes gait quality, whether a flat-terrain policy transfers to BipedalWalkerHardcore-v3, and whether curriculum learning improves hardcore performance. The strongest result came from a stability-shaped fitness function that penalized body tilt and angular velocity while preserving the environment reward as the dominant term. That controller achieved an average reward of $272.92 \pm 6.89$ over 20 evaluation episodes with a 0\% failure rate. An ablation disabling structural mutation reduced performance by 48.73 points, showing that topology growth contributed materially to locomotion quality. However, policies trained on flat terrain failed to generalize to the hardcore setting, and curriculum learning accelerated early progress without solving obstacle-rich locomotion. These results show that NEAT can produce strong and interpretable walking behavior on flat terrain, but success depends heavily on reward design and environmental complexity.
+\end{abstract}
+
+\begin{IEEEkeywords}
+NEAT, neuroevolution, evolutionary computation, locomotion, BipedalWalker, curriculum learning
+\end{IEEEkeywords}
+
+\section{Introduction}
+Bipedal locomotion is a useful testbed for bio-inspired optimization because useful behavior must emerge from coordination rather than from a hand-designed controller. We selected NEAT because it evolves both network weights and topology, making it well suited to tasks where the controller structure is not known in advance. The target environment, BipedalWalker-v3, supplies a 24-dimensional observation vector and requires four continuous motor outputs. Episodes reward forward progress, penalize falls, and mildly penalize excessive torque.
+
+Our report focuses on four experiments. First, we compare full NEAT against a fixed-topology ablation to measure the value of structural evolution. Second, we test three fitness definitions: speed-only, energy-aware, and stability-aware. Third, we transfer the best flat-terrain controller to BipedalWalkerHardcore-v3. Fourth, we compare direct hardcore training against curriculum learning. The goal is not only to report the best score, but also to understand which design choices most strongly shaped behavior.
+
+This framing is especially relevant for bio-inspired AI. A locomotion controller must discover coordination, balance, and timing from sparse episodic feedback, and the outcome depends strongly on what behaviors the fitness function rewards or suppresses. For that reason, BipedalWalker is not just a benchmark for final reward, but also a benchmark for how evolutionary search navigates local optima such as standing still, over-penalizing motion, or adopting unnatural yet successful gaits.
+
+\section{Method}
+NEAT begins with minimal feedforward networks and applies mutation, crossover, and speciation to evolve increasingly capable controllers \cite{stanley2002}. In our implementation, each genome maps the 24 environment observations to four motor torques through a tanh-activated neural network. Historical markings allow structurally different genomes to align during crossover, while speciation protects new topologies long enough for their weights to improve.
+
+The baseline configuration used a population size of 150, no initial hidden nodes, add-node probability 0.4, add-connection probability 0.6, compatibility threshold 2.0, and a fitness threshold of 280. Each genome was evaluated for up to 1600 simulation steps in BipedalWalker-v3. Fitness was the accumulated episode reward unless otherwise modified by the experiment-specific objective. Controllers were later evaluated over 20 episodes to measure mean reward, variability, and failure rate.
+
+These settings were selected after observing several failure modes in early runs. With weaker structural exploration, populations converged to policies that balanced in place and accepted near-zero reward rather than risk falling. Excessively strong energy or tilt penalties also produced frozen or immediately unstable controllers. The final configuration therefore reflects both algorithm design and practical tuning for this domain.
+
+We tested three reward variants:
+\begin{equation}
+f_{\text{speed}} = R,
+\end{equation}
+\begin{equation}
+f_{\text{eff}} = R - 0.001 \sum_t \sum_i |a_i^t|,
+\end{equation}
+\begin{equation}
+f_{\text{stab}} = R - \sum_t \left(0.01 |\theta_t| + 0.005 |\omega_t| \right),
+\end{equation}
+where $R$ is the environment reward, $a_i^t$ are motor actions, $\theta_t$ is hull angle, and $\omega_t$ is hull angular velocity. Earlier penalty scales were too aggressive and produced degenerate behaviors such as freezing or immediate falls; the final scales above were the successful settings retained in this report.
+
+\begin{table}[t]
+\caption{Core Experimental Configuration}
+\label{tab:config}
+\centering
+\begin{tabular}{lc}
+\toprule
+\textbf{Parameter} & \textbf{Value} \\
+\midrule
+Population size & 150 \\
+Inputs / outputs & 24 / 4 \\
+Initial hidden nodes & 0 \\
+Add-node probability & 0.4 \\
+Add-connection probability & 0.6 \\
+Compatibility threshold & 2.0 \\
+Maximum steps (flat terrain) & 1600 \\
+Evaluation episodes & 20 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{comparison_all_experiments.png}
+\caption{Comparison across the main flat-terrain experiments. Stability reward shaping produced the best average return and the only 0\% failure rate, while the efficiency objective evolved the largest network without matching the stability policy.}
+\label{fig:comparison}
+\end{figure}
+
+\section{Results}
+\subsection{Baseline and Ablation}
+The baseline speed-only run found its best genome at generation 280 with training fitness 256.48. Over 20 evaluation episodes, that policy achieved $235.43 \pm 78.74$ reward with a 5\% failure rate. Its performance was competitive, but variability remained high, suggesting that speed alone encouraged aggressive behavior without consistently stable posture. During training, the population showed a recognizable breakthrough pattern: early generations mostly fell immediately, then a small number of species discovered partial forward motion, and later generations refined that motion into a repeatable gait.
+
+To isolate the effect of topology growth, we disabled structural mutation and allowed only weight and bias evolution. That fixed-topology version plateaued at 207.75 fitness, 48.73 points below full NEAT, and achieved a lower 20-episode average reward of 183.45 with a 10\% failure rate. This confirms that structural search was not incidental: new hidden nodes and connections helped the population escape local optima and improve both reward and robustness.
+
+Qualitatively, the two controllers also moved differently. Full NEAT evolved a compact forward shuffle that traded visual naturalness for reliable progress. The fixed-topology controller produced a more obvious stepping motion, but it was slower and less stable. This difference matters because it shows that topology evolution did not simply improve the same gait; it changed the class of solutions the search process could discover.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{ablation_fitness.png}
+\caption{Ablation result for fixed-topology NEAT. The run plateaus below the best full-NEAT score, indicating that weight evolution alone was insufficient to match the performance of topology-evolving controllers.}
+\label{fig:ablation}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\subfloat[Fixed-topology controller]{\includegraphics[width=0.48\columnwidth]{ablation_fixed_topology.png}\label{fig:fixedwalker}}
+\hfill
+\subfloat[Full NEAT controller]{\includegraphics[width=0.48\columnwidth]{baseline_neat_walker.png}\label{fig:fullwalker}}
+\caption{Walker snapshots from the ablation comparison. The fixed-topology controller uses a more visibly stepping gait, while the full NEAT controller adopts a faster and more stable shuffle-like motion. Keep these filenames aligned with the original project assets.}
+\label{fig:walkers}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{network_topology.png}
+\caption{Topology of an evolved winning controller. Starting from no hidden nodes, NEAT added internal structure and sparse connectivity, illustrating why structural mutation was useful on this task.}
+\label{fig:topology}
+\end{figure}
+
+\subsection{Fitness Function Comparison}
+Table~\ref{tab:mainresults} summarizes the most important flat-terrain results. The stability objective was the strongest configuration by every practical metric: it achieved the highest average reward, the lowest variance, the highest worst-case episode reward, and the only zero-failure evaluation. It also reached peak training fitness faster than the baseline. In contrast, the efficiency objective produced the fastest average completion behavior but was also the least reliable among the successful flat-terrain walkers.
+
+\begin{table}[t]
+\caption{Main Results Across Experiments}
+\label{tab:mainresults}
+\centering
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Experiment} & \textbf{Avg} & \textbf{Std} & \textbf{Fail} & \textbf{Best Fit.} \\
+\midrule
+Baseline (speed) & 235.43 & 78.74 & 5\% & 256.48 \\
+Efficiency & 217.86 & 97.05 & 20\% & 261.85 \\
+Stability & \textbf{272.92} & \textbf{6.89} & \textbf{0\%} & \textbf{280.57} \\
+Fixed topology & 183.45 & 60.12 & 10\% & 207.75 \\
+Hardcore direct & \multicolumn{4}{c}{$-3.01$ after 1000 generations} \\
+Curriculum best & \multicolumn{4}{c}{$+161.35$ early, then regressed on hardcore} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The central finding is that reward design mattered more than merely increasing network size. The efficiency policy evolved the most complex controller but still underperformed the stability policy. Penalizing tilt encouraged a more upright gait, which mechanically improved balance and yielded better episode-to-episode consistency. The best stability controller also produced the most convincing biological motion among the successful walkers: rather than maximizing pure forward drive, it maintained posture first and converted that posture into steady locomotion.
+
+This experiment also exposed how sensitive neuroevolution can be to the scale of shaping terms. When the energy penalty was set far too high, the agent exploited the objective by barely moving. When the tilt penalty was too large, controllers fell immediately because exploratory actions were punished before a stabilizing gait could emerge. Once reduced to modest scales, both terms became helpful biases rather than dominant objectives. That transition from reward hacking to useful shaping was one of the clearest practical lessons from the project.
+
+\subsection{Training Dynamics and Failure Modes}
+Several training behaviors from the longer report help explain why the final results look the way they do. In early baseline runs, the population often converged to a standing-still local optimum: balancing in place avoided the $-100$ fall penalty, but it also prevented the population from discovering the short sequence of unstable exploratory actions needed for true walking. Increasing structural mutation and maintaining more species diversity were necessary to escape that regime.
+
+\begin{table}[t]
+\caption{Representative Training Milestones}
+\label{tab:milestones}
+\centering
+\begin{tabular}{rcc}
+\toprule
+\textbf{Generation} & \textbf{Best Fitness} & \textbf{Interpretation} \\
+\midrule
+0 & $-75.63$ & Immediate falling dominates \\
+50 & $+118.84$ & First reliable walking behavior \\
+200 & $+244.77$ & Stable locomotion established \\
+280 & $+256.48$ & Baseline best genome found \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The original training logs also showed that performance did not improve monotonically with network complexity. In some runs, hidden-node growth temporarily reduced fitness because newly added structure required additional generations of weight tuning before it became useful. This is consistent with NEAT's complexification principle: adding representational capacity creates opportunity, but only if speciation protects those innovations long enough for selection to refine them.
+
+\subsection{Hardcore Transfer and Curriculum Learning}
+The best flat-terrain stability controller did not generalize to BipedalWalkerHardcore-v3. Its average score dropped from $272.92 \pm 6.89$ on flat terrain to $-84.33 \pm 10.38$ on hardcore terrain, with a 100\% failure rate. Some episodes ended in early falls, while others survived longer by refusing to make meaningful forward progress. This indicates that the learned gait was specialized for flat terrain rather than for obstacle negotiation.
+
+Direct NEAT training on hardcore terrain also remained unsolved after 1000 generations, eventually converging near $-3.01$. The best emergent behavior was a low crouching strategy that reduced body exposure and avoided catastrophic falls without truly mastering obstacle traversal. Curriculum learning improved early progress: it reached positive scores much sooner on the easier stages and peaked at 161.35 before the switch to hardcore terrain. However, once training entered the hardcore stage, performance regressed and never recovered, ending near the same range as direct hardcore training.
+
+The curriculum result is important because it separates acceleration from transfer. Early stages clearly helped the population learn flat-terrain locomotion faster, but those gains did not compose into obstacle-crossing ability. In effect, the search process optimized a flat-terrain gait that became a poor starting point for the harder environment. This resembles catastrophic forgetting: the genome preserved some earlier competence, yet that competence did not translate into the later task objective.
+
+The longer report identified two recurring hardcore failure patterns. In the first, the transferred flat-terrain controller hit the earliest obstacle and fell within the first few hundred steps. In the second, it survived much longer by freezing, leaning, or drifting without making meaningful forward progress. Those episodes are useful to mention because they show that ``failure'' on hardcore was not always immediate collapse; sometimes the controller preserved balance but lacked the obstacle-handling strategy needed to convert that balance into reward.
+
+\begin{table}[t]
+\caption{Hardcore and Curriculum Summary}
+\label{tab:hardcore}
+\centering
+\begin{tabular}{lcc}
+\toprule
+\textbf{Condition} & \textbf{Best Result} & \textbf{Main Outcome} \\
+\midrule
+Transfer to hardcore & $-84.33 \pm 10.38$ & 100\% failure rate \\
+Direct hardcore training & $-3.01$ & Crouching survival strategy \\
+Curriculum learning & $+161.35$ early & Fast start, poor transfer \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{fitness_curriculum.png}
+\caption{Curriculum learning history. Training progresses quickly on flat terrain, but performance drops sharply after the transition to hardcore terrain and does not recover, showing that early curriculum gains did not transfer to the harder task.}
+\label{fig:curriculum}
+\end{figure}
+
+\section{Discussion}
+Two conclusions stand out. First, topology evolution clearly mattered: disabling structural mutation reduced both score and robustness. Second, the specific fitness signal mattered even more. A small stability penalty dramatically improved gait quality, suggesting that modest biomechanical priors can guide neuroevolution toward better solutions without overwhelming the original task reward.
+
+The evolved topologies help explain this result. Controllers were not uniformly dense black boxes; they remained selective in how they used sensory inputs and hidden structure. That interpretability is one of the strengths of NEAT for a class project: the method not only produces a policy, but also shows how complexity was added over time. The network figure therefore serves as more than decoration; it directly supports the ablation claim that learned structure mattered.
+
+The hardcore experiments also clarify the limits of the approach at this scale. Flat-terrain locomotion and obstacle-rich locomotion were effectively different tasks, and the learned representations did not transfer well between them. Curriculum learning helped only while the task remained similar to the early stages; once the environment changed substantially, the prior gait became a liability rather than a foundation. These outcomes suggest that stronger diversity preservation, denser intermediate curricula, or hybrid evolutionary and gradient-based methods may be needed for reliable hardcore performance.
+
+From a broader bio-inspired perspective, the project suggests that successful locomotion emerged from the interaction of morphology-aware reward shaping and open-ended structural search. NEAT alone did not guarantee the best behavior, but when paired with a fitness function that gently favored upright motion, it discovered a controller that was both high-scoring and visually coherent. That is a strong result for a compact evolutionary setup without gradient backpropagation through the physics engine.
+
+The implementation process itself also reinforces the paper's conclusions. Important improvements did not come from changing only one factor; they came from tuning the interaction between mutation rates, species diversity, and reward shaping. In other words, the success of the final model was partly algorithmic and partly experimental. That is a meaningful takeaway for evolutionary robotics: the search procedure and the task definition co-design the final behavior.
+
+\subsection{Implementation Notes}
+The longer report also documented several practical issues that shaped the final experiments. Newer \texttt{neat-python} configurations required explicit fitness-termination settings, and manual genome construction was unreliable without initializing a full population object first. More importantly, several early hyperparameter settings created misleading conclusions: an overly strong energy penalty made the robot freeze, while an overly strong stability penalty caused immediate falls and very short episodes. These debugging steps are worth retaining in the extended abstract because they clarify that the final results were not obtained from a single straightforward run; they emerged from iterative diagnosis of failure modes.
+
+\section{Conclusion}
+This study showed that NEAT can evolve strong bipedal walking behavior on BipedalWalker-v3, especially when the reward function includes a light stability bias. The best controller reached $272.92 \pm 6.89$ reward with zero failures over 20 episodes. An ablation demonstrated that topology evolution contributed materially to performance, while the transfer and curriculum experiments showed that obstacle-rich locomotion remained unsolved. Overall, NEAT proved effective and interpretable on flat terrain, but its success was tightly linked to reward shaping and task difficulty.
+
+Future work should focus on improving transfer rather than only improving flat-terrain reward. One promising direction is a denser curriculum in which obstacle difficulty increases gradually instead of switching abruptly from flat terrain to hardcore terrain. A second direction is novelty-based or quality-diversity evolution, which could preserve multiple locomotion strategies rather than allowing the population to collapse around one dominant gait. It may also be useful to combine NEAT with lightweight gradient-based fine-tuning or with recurrent controllers so that evolved policies can react more adaptively to upcoming terrain. Finally, larger populations and longer training runs may reveal whether the hardcore limitation observed here is primarily a representation issue, a search-budget issue, or a reward-design issue.
+
+\begin{thebibliography}{99}
+\bibitem{stanley2002}
+K. O. Stanley and R. Miikkulainen, ``Evolving neural networks through augmenting topologies,'' \emph{Evolutionary Computation}, vol. 10, no. 2, pp. 99--127, 2002.
+
+\bibitem{gymnasium2024}
+M. Towers \emph{et al.}, ``Gymnasium: A standard interface for reinforcement learning environments,'' arXiv:2407.17032, 2024.
+
+\bibitem{neatpython}
+A. McIntyre, C. Kallada, A. Miguel, and C. Gosse, ``neat-python,'' software repository. [Online]. Available: \url{https://github.com/CodeReclaimers/neat-python}
+
+\bibitem{gym2016}
+G. Brockman \emph{et al.}, ``OpenAI Gym,'' arXiv:1606.01540, 2016.
+
+\bibitem{bengio2009}
+Y. Bengio, J. Louradour, R. Collobert, and J. Weston, ``Curriculum learning,'' in \emph{Proc. 26th Int. Conf. Machine Learning}, 2009, pp. 41--48.
+\end{thebibliography}
+
+\end{document}

@@ -1,0 +1,6 @@
+neat-python
+gymnasium[box2d]
+pygame
+numpy
+matplotlib
+networkx

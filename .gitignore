@@ -1,0 +1,46 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Virtual environments
+.venv/
+venv/
+env/
+neat_env/
+
+# Local/editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Training checkpoints and generated experiment state
+checkpoints/
+checkpoints_*/
+*.checkpoint
+
+# Large video captures; put important demo videos in GitHub Releases or external storage
+*.mov
+*.mp4
+*.avi
+*.mkv
+videos for yt/
+
+# Generated archives
+*.zip
+*.tar.gz
+
+# Logs
+*.log
+logs/
