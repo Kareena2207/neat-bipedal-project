@@ -91,4 +91,4 @@ If you want to share demo videos or the full checkpoint history, upload them sep
 
 ## License
 
-Add a license before making the repository public if you want others to reuse the code. MIT is a common choice for academic/demo projects.
+This project is licensed under the MIT License. See the `LICENSE` file for details.
